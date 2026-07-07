@@ -12,20 +12,27 @@ RUN mkdir -p /app/site/tools && cp -r /app/webpub/wwwroot/. /app/site/tools/ \
 # Caddy static binary
 RUN curl -sSL "https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz" -o /tmp/caddy.tgz \
  && tar -xzf /tmp/caddy.tgz -C /usr/local/bin caddy && chmod +x /usr/local/bin/caddy && rm /tmp/caddy.tgz
-# Caddyfile: API + runtime-json -> dotnet on :5000; /tools/* static with SPA try_files; root -> /tools/
+# Caddyfile (each block MUST be multi-line for Caddy)
 RUN printf '%s\n' \
   ':8080 {' \
-  '  handle /tool-api/* { reverse_proxy localhost:5000 }' \
-  '  handle /tools/data/* { reverse_proxy localhost:5000 }' \
-  '  handle_path /tools/* {' \
-  '    root * /app/site/tools' \
-  '    try_files {path} /index.html' \
-  '    file_server' \
-  '  }' \
-  '  handle { redir /tools/ 302 }' \
-  '}' > /app/Caddyfile
+  '	handle /tool-api/* {' \
+  '		reverse_proxy localhost:5000' \
+  '	}' \
+  '	handle /tools/data/* {' \
+  '		reverse_proxy localhost:5000' \
+  '	}' \
+  '	handle_path /tools/* {' \
+  '		root * /app/site/tools' \
+  '		try_files {path} /index.html' \
+  '		file_server' \
+  '	}' \
+  '	handle {' \
+  '		redir /tools/ 302' \
+  '	}' \
+  '}' > /app/Caddyfile \
+ && caddy validate --config /app/Caddyfile --adapter caddyfile
 # entrypoint: API on :5000 (bg) + Caddy on :8080 (fg)
-RUN printf '%s\n' '#!/bin/bash' 'set -e' 'ASPNETCORE_URLS=http://localhost:5000 dotnet /app/host/DomainDetective.OnlineHost.dll &' 'exec caddy run --config /app/Caddyfile --adapter caddyfile' > /app/entrypoint.sh \
+RUN printf '%s\n' '#!/bin/bash' 'ASPNETCORE_URLS=http://localhost:5000 dotnet /app/host/DomainDetective.OnlineHost.dll &' 'exec caddy run --config /app/Caddyfile --adapter caddyfile' > /app/entrypoint.sh \
  && chmod +x /app/entrypoint.sh
 ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080
